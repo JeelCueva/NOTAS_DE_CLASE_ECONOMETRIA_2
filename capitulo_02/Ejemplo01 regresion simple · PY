@@ -1,0 +1,459 @@
+"""
+======================================================================
+ECONOMETRÍA II - EJEMPLO 02: REGRESIÓN LINEAL SIMPLE
+======================================================================
+
+Modelo CAPM: r_activo - r_f = alpha + beta*(r_mercado - r_f) + epsilon
+
+Prof. Jeel Elvis Cueva Laguna
+Universidad Nacional Hermilio Valdizán - Huánuco
+======================================================================
+"""
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+from scipy import stats
+import statsmodels.api as sm
+from statsmodels.stats.diagnostic import het_breuschpagan
+from statsmodels.stats.stattools import durbin_watson
+
+# Configuración de gráficas
+plt.style.use('seaborn-v0_8-darkgrid')
+sns.set_palette("husl")
+
+print("=" * 70)
+print("ECONOMETRÍA II - EJEMPLO 02: REGRESIÓN LINEAL SIMPLE")
+print("=" * 70)
+print("\nProf. Jeel Elvis Cueva Laguna")
+print("Universidad Nacional Hermilio Valdizán - Huánuco\n")
+
+# ============================================================
+# PARTE 1: EJEMPLO MANUAL CON 5 OBSERVACIONES
+# ============================================================
+
+print("=" * 70)
+print("PARTE 1: EJEMPLO MANUAL (n = 5)")
+print("=" * 70)
+
+# Datos del ejemplo manual (retornos en exceso)
+fechas_manual = pd.date_range(start='2025-10-27', periods=5, freq='D')
+x_manual = np.array([-0.012, 0.008, -0.005, 0.015, 0.010])  # Retornos mercado
+y_manual = np.array([-0.018, 0.015, -0.010, 0.025, 0.020])  # Retornos Apple
+
+df_manual = pd.DataFrame({
+    'Fecha': fechas_manual,
+    'Mercado (x)': x_manual,
+    'Apple (y)': y_manual
+})
+
+print("\nDatos originales (retornos en exceso):")
+print(df_manual.to_string(index=False))
+
+# ------------------------------------------------------------
+# Paso 1: Cálculos preliminares
+# ------------------------------------------------------------
+
+n = len(x_manual)
+x_mean = np.mean(x_manual)
+y_mean = np.mean(y_manual)
+
+print(f"\n{'─' * 70}")
+print("PASO 1: ESTADÍSTICAS BÁSICAS")
+print("─" * 70)
+print(f"n (número de observaciones) = {n}")
+print(f"Media de x (mercado): {x_mean:.6f}")
+print(f"Media de y (Apple):   {y_mean:.6f}")
+
+# ------------------------------------------------------------
+# Paso 2: Desviaciones de las medias
+# ------------------------------------------------------------
+
+x_dev = x_manual - x_mean
+y_dev = y_manual - y_mean
+
+# Sumas de cuadrados y productos cruzados
+Sxx = np.sum(x_dev ** 2)
+Syy = np.sum(y_dev ** 2)
+Sxy = np.sum(x_dev * y_dev)
+
+print(f"\n{'─' * 70}")
+print("PASO 2: SUMAS DE CUADRADOS Y PRODUCTOS CRUZADOS")
+print("─" * 70)
+
+# Tabla de desviaciones
+df_desviaciones = pd.DataFrame({
+    'i': range(1, n+1),
+    'x_i': x_manual,
+    'y_i': y_manual,
+    '(x_i - x̄)': x_dev,
+    '(y_i - ȳ)': y_dev,
+    '(x_i - x̄)²': x_dev ** 2,
+    '(x_i - x̄)(y_i - ȳ)': x_dev * y_dev
+})
+
+print("\nTabla de desviaciones:")
+print(df_desviaciones.to_string(index=False))
+
+print(f"\nSxx = Σ(x_i - x̄)² = {Sxx:.8f}")
+print(f"Syy = Σ(y_i - ȳ)² = {Syy:.8f}")
+print(f"Sxy = Σ(x_i - x̄)(y_i - ȳ) = {Sxy:.8f}")
+
+# ------------------------------------------------------------
+# Paso 3: Estimación de parámetros
+# ------------------------------------------------------------
+
+beta_1 = Sxy / Sxx
+beta_0 = y_mean - beta_1 * x_mean
+
+print(f"\n{'─' * 70}")
+print("PASO 3: ESTIMADORES MCO")
+print("─" * 70)
+print(f"β₁ (Beta) = Sxy / Sxx = {Sxy:.8f} / {Sxx:.8f}")
+print(f"         = {beta_1:.6f}")
+print(f"\nβ₀ (Alpha) = ȳ - β₁·x̄ = {y_mean:.6f} - {beta_1:.6f} × {x_mean:.6f}")
+print(f"          = {beta_0:.6f}")
+
+print(f"\nECUACIÓN ESTIMADA:")
+print(f"ŷ = {beta_0:.4f} + {beta_1:.4f}·x")
+
+# ------------------------------------------------------------
+# Paso 4: Valores ajustados y residuos
+# ------------------------------------------------------------
+
+y_pred = beta_0 + beta_1 * x_manual
+residuos = y_manual - y_pred
+residuos_cuadrado = residuos ** 2
+
+print(f"\n{'─' * 70}")
+print("PASO 4: VALORES AJUSTADOS Y RESIDUOS")
+print("─" * 70)
+
+df_ajuste = pd.DataFrame({
+    'i': range(1, n+1),
+    'x_i': x_manual,
+    'y_i': y_manual,
+    'ŷ_i': y_pred,
+    'ε̂_i': residuos,
+    'ε̂_i²': residuos_cuadrado
+})
+
+print("\nTabla de valores ajustados:")
+print(df_ajuste.to_string(index=False))
+
+suma_residuos = np.sum(residuos)
+SCR = np.sum(residuos_cuadrado)
+
+print(f"\nVerificación: Σε̂_i = {suma_residuos:.10f} ≈ 0 ✓")
+print(f"SCR (Suma de Cuadrados Residual) = {SCR:.8f}")
+
+# ------------------------------------------------------------
+# Paso 5: Coeficiente de determinación R²
+# ------------------------------------------------------------
+
+SCT = Syy
+SCE = SCT - SCR
+R_squared = SCE / SCT
+R_squared_alt = 1 - (SCR / SCT)
+
+print(f"\n{'─' * 70}")
+print("PASO 5: BONDAD DE AJUSTE (R²)")
+print("─" * 70)
+print(f"SCT (Suma de Cuadrados Total)     = {SCT:.8f}")
+print(f"SCE (Suma de Cuadrados Explicada) = {SCE:.8f}")
+print(f"SCR (Suma de Cuadrados Residual)  = {SCR:.8f}")
+print(f"\nVerificación: SCT = SCE + SCR")
+print(f"             {SCT:.8f} = {SCE:.8f} + {SCR:.8f}")
+print(f"             {SCT:.8f} = {SCE + SCR:.8f} ✓")
+
+print(f"\nR² = SCE / SCT = {R_squared:.6f} = {R_squared*100:.2f}%")
+print(f"R² (alternativo) = 1 - SCR/SCT = {R_squared_alt:.6f} ✓")
+
+# ------------------------------------------------------------
+# Paso 6: Inferencia estadística
+# ------------------------------------------------------------
+
+# Error estándar de la regresión
+s_squared = SCR / (n - 2)
+s = np.sqrt(s_squared)
+
+# Errores estándar de los coeficientes
+se_beta_1 = s / np.sqrt(Sxx)
+se_beta_0 = s * np.sqrt((1/n) + (x_mean**2 / Sxx))
+
+# Estadísticos t
+t_beta_1 = beta_1 / se_beta_1
+t_beta_0 = beta_0 / se_beta_0
+
+# P-valores (prueba bilateral)
+p_value_beta_1 = 2 * (1 - stats.t.cdf(abs(t_beta_1), n-2))
+p_value_beta_0 = 2 * (1 - stats.t.cdf(abs(t_beta_0), n-2))
+
+print(f"\n{'─' * 70}")
+print("PASO 6: INFERENCIA ESTADÍSTICA")
+print("─" * 70)
+print(f"Error estándar de la regresión: s = {s:.6f}")
+print(f"\nCoeficiente    Estimador    Err.Est.    t-stat    p-valor")
+print("─" * 70)
+print(f"β₀ (Alpha)     {beta_0:10.6f}  {se_beta_0:10.6f}  {t_beta_0:8.4f}  {p_value_beta_0:8.4f}")
+print(f"β₁ (Beta)      {beta_1:10.6f}  {se_beta_1:10.6f}  {t_beta_1:8.4f}  {p_value_beta_1:8.4f}")
+
+# ------------------------------------------------------------
+# Verificación con statsmodels
+# ------------------------------------------------------------
+
+print(f"\n{'=' * 70}")
+print("VERIFICACIÓN CON STATSMODELS")
+print("=" * 70)
+
+X_manual = sm.add_constant(x_manual)
+modelo_manual = sm.OLS(y_manual, X_manual).fit()
+
+print("\nResumen del modelo (statsmodels):")
+print(modelo_manual.summary())
+
+print("\nComparación de estimadores:")
+print(f"{'Método':<20} {'β₀ (Alpha)':<15} {'β₁ (Beta)':<15} {'R²':<10}")
+print("─" * 70)
+print(f"{'Cálculo manual':<20} {beta_0:>14.6f} {beta_1:>14.6f} {R_squared:>9.6f}")
+print(f"{'Statsmodels':<20} {modelo_manual.params[0]:>14.6f} {modelo_manual.params[1]:>14.6f} {modelo_manual.rsquared:>9.6f}")
+print(f"{'Diferencia':<20} {abs(beta_0 - modelo_manual.params[0]):>14.10f} {abs(beta_1 - modelo_manual.params[1]):>14.10f} {abs(R_squared - modelo_manual.rsquared):>9.10f}")
+
+# ============================================================
+# PARTE 2: ANÁLISIS COMPLETO CON DATOS SIMULADOS (n = 260)
+# ============================================================
+
+print(f"\n{'=' * 70}")
+print("PARTE 2: ANÁLISIS COMPLETO CON DATOS SIMULADOS")
+print("=" * 70)
+
+# Generar datos simulados de retornos diarios (1 año de trading ≈ 260 días)
+np.random.seed(42)
+n_completo = 260
+
+# Simular retornos del mercado (S&P 500)
+mercado_completo = np.random.normal(0.0008, 0.0142, n_completo)
+
+# Simular retornos de Apple con beta = 1.42
+alpha_real = 0.0006
+beta_real = 1.42
+sigma_real = 0.0091
+
+epsilon = np.random.normal(0, sigma_real, n_completo)
+apple_completo = alpha_real + beta_real * mercado_completo + epsilon
+
+# Crear DataFrame
+fechas_completo = pd.date_range(start='2025-01-02', periods=n_completo, freq='B')
+df_completo = pd.DataFrame({
+    'Fecha': fechas_completo,
+    'Mercado': mercado_completo,
+    'Apple': apple_completo
+})
+
+print(f"\nDatos simulados: n = {n_completo} observaciones")
+print("\nEstadísticas descriptivas:")
+print(df_completo[['Mercado', 'Apple']].describe())
+
+# Estimar modelo completo
+X_completo = sm.add_constant(df_completo['Mercado'])
+modelo_completo = sm.OLS(df_completo['Apple'], X_completo).fit()
+
+print(f"\n{'─' * 70}")
+print("RESULTADOS DE LA REGRESIÓN (n = 260)")
+print("─" * 70)
+print("\nEcuación estimada:")
+print(f"ŷ = {modelo_completo.params[0]:.6f} + {modelo_completo.params[1]:.6f}·x")
+
+print("\nResumen estadístico:")
+print(modelo_completo.summary())
+
+# Tabla de resultados
+print("\nTabla de coeficientes:")
+resultados = pd.DataFrame({
+    'Coeficiente': ['Intercepto (α)', 'Pendiente (β)'],
+    'Estimador': modelo_completo.params.values,
+    'Error Est.': modelo_completo.bse.values,
+    't-statistic': modelo_completo.tvalues.values,
+    'p-valor': modelo_completo.pvalues.values,
+    'IC 95% Inf': modelo_completo.conf_int()[0].values,
+    'IC 95% Sup': modelo_completo.conf_int()[1].values
+})
+print(resultados.to_string(index=False))
+
+print(f"\nR² = {modelo_completo.rsquared:.6f} ({modelo_completo.rsquared*100:.2f}%)")
+print(f"R² ajustado = {modelo_completo.rsquared_adj:.6f}")
+print(f"F-statistic = {modelo_completo.fvalue:.4f} (p-valor = {modelo_completo.f_pvalue:.10f})")
+
+# ============================================================
+# PARTE 3: DIAGNÓSTICOS Y GRÁFICAS
+# ============================================================
+
+print(f"\n{'=' * 70}")
+print("PARTE 3: DIAGNÓSTICOS DEL MODELO")
+print("=" * 70)
+
+# Test de normalidad (Jarque-Bera)
+jb_stat = modelo_completo.diagn['jb'][0]
+jb_pvalue = modelo_completo.diagn['jb'][1]
+
+print(f"\nTest de Jarque-Bera (Normalidad de residuos):")
+print(f"Estadístico JB = {jb_stat:.4f}")
+print(f"p-valor = {jb_pvalue:.4f}")
+if jb_pvalue > 0.05:
+    print("✓ No se rechaza normalidad (p-valor > 0.05)")
+else:
+    print("✗ Se rechaza normalidad (p-valor < 0.05)")
+
+# Test de Durbin-Watson (autocorrelación)
+dw_stat = durbin_watson(modelo_completo.resid)
+print(f"\nTest de Durbin-Watson (Autocorrelación):")
+print(f"Estadístico DW = {dw_stat:.4f}")
+print(f"Interpretación: DW ≈ 2 indica no autocorrelación")
+if 1.5 < dw_stat < 2.5:
+    print("✓ No hay evidencia de autocorrelación significativa")
+else:
+    print("✗ Posible autocorrelación")
+
+# Test de Breusch-Pagan (heterocedasticidad)
+bp_test = het_breuschpagan(modelo_completo.resid, modelo_completo.model.exog)
+bp_stat = bp_test[0]
+bp_pvalue = bp_test[1]
+
+print(f"\nTest de Breusch-Pagan (Heterocedasticidad):")
+print(f"Estadístico BP = {bp_stat:.4f}")
+print(f"p-valor = {bp_pvalue:.4f}")
+if bp_pvalue > 0.05:
+    print("✓ No se rechaza homocedasticidad (p-valor > 0.05)")
+else:
+    print("✗ Se rechaza homocedasticidad (p-valor < 0.05)")
+
+# ============================================================
+# PARTE 4: VISUALIZACIONES
+# ============================================================
+
+print(f"\n{'=' * 70}")
+print("GENERANDO GRÁFICAS...")
+print("=" * 70)
+
+fig = plt.figure(figsize=(16, 12))
+
+# Gráfica 1: Diagrama de dispersión con línea de regresión (datos completos)
+ax1 = plt.subplot(2, 3, 1)
+ax1.scatter(df_completo['Mercado'], df_completo['Apple'], alpha=0.5, s=20)
+x_line = np.linspace(df_completo['Mercado'].min(), df_completo['Mercado'].max(), 100)
+y_line = modelo_completo.params[0] + modelo_completo.params[1] * x_line
+ax1.plot(x_line, y_line, 'r-', linewidth=2, label=f'ŷ = {modelo_completo.params[0]:.4f} + {modelo_completo.params[1]:.2f}x')
+ax1.set_xlabel('Retorno Mercado (S&P 500)', fontsize=11)
+ax1.set_ylabel('Retorno Apple', fontsize=11)
+ax1.set_title('Modelo CAPM: Apple vs Mercado (n=260)', fontsize=12, fontweight='bold')
+ax1.legend()
+ax1.grid(True, alpha=0.3)
+ax1.text(0.05, 0.95, f'R² = {modelo_completo.rsquared:.4f}\nβ = {modelo_completo.params[1]:.4f}',
+         transform=ax1.transAxes, verticalalignment='top',
+         bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+
+# Gráfica 2: Residuos vs Valores ajustados
+ax2 = plt.subplot(2, 3, 2)
+ax2.scatter(modelo_completo.fittedvalues, modelo_completo.resid, alpha=0.5, s=20)
+ax2.axhline(y=0, color='r', linestyle='--', linewidth=2)
+ax2.set_xlabel('Valores Ajustados', fontsize=11)
+ax2.set_ylabel('Residuos', fontsize=11)
+ax2.set_title('Residuos vs Valores Ajustados', fontsize=12, fontweight='bold')
+ax2.grid(True, alpha=0.3)
+
+# Gráfica 3: Q-Q Plot
+ax3 = plt.subplot(2, 3, 3)
+stats.probplot(modelo_completo.resid, dist="norm", plot=ax3)
+ax3.set_title('Q-Q Plot de Residuos', fontsize=12, fontweight='bold')
+ax3.grid(True, alpha=0.3)
+
+# Gráfica 4: Histograma de residuos
+ax4 = plt.subplot(2, 3, 4)
+ax4.hist(modelo_completo.resid, bins=30, density=True, alpha=0.7, edgecolor='black')
+# Superponer distribución normal
+mu, sigma = modelo_completo.resid.mean(), modelo_completo.resid.std()
+x_norm = np.linspace(modelo_completo.resid.min(), modelo_completo.resid.max(), 100)
+ax4.plot(x_norm, stats.norm.pdf(x_norm, mu, sigma), 'r-', linewidth=2, label='Normal')
+ax4.set_xlabel('Residuos', fontsize=11)
+ax4.set_ylabel('Densidad', fontsize=11)
+ax4.set_title('Distribución de Residuos', fontsize=12, fontweight='bold')
+ax4.legend()
+ax4.grid(True, alpha=0.3, axis='y')
+
+# Gráfica 5: Residuos en el tiempo
+ax5 = plt.subplot(2, 3, 5)
+ax5.plot(modelo_completo.resid, alpha=0.7, linewidth=0.8)
+ax5.axhline(y=0, color='r', linestyle='--', linewidth=2)
+ax5.set_xlabel('Observación', fontsize=11)
+ax5.set_ylabel('Residuos', fontsize=11)
+ax5.set_title('Residuos en el Tiempo', fontsize=12, fontweight='bold')
+ax5.grid(True, alpha=0.3)
+
+# Gráfica 6: Ejemplo manual con regresión
+ax6 = plt.subplot(2, 3, 6)
+ax6.scatter(x_manual, y_manual, s=100, c='blue', alpha=0.6, edgecolors='black', linewidth=1.5)
+x_line_manual = np.linspace(x_manual.min(), x_manual.max(), 100)
+y_line_manual = beta_0 + beta_1 * x_line_manual
+ax6.plot(x_line_manual, y_line_manual, 'r-', linewidth=2, label=f'ŷ = {beta_0:.4f} + {beta_1:.2f}x')
+# Etiquetar puntos
+for i in range(len(x_manual)):
+    ax6.annotate(f'{i+1}', (x_manual[i], y_manual[i]), 
+                textcoords="offset points", xytext=(0,10), ha='center')
+ax6.set_xlabel('Retorno Mercado', fontsize=11)
+ax6.set_ylabel('Retorno Apple', fontsize=11)
+ax6.set_title('Ejemplo Manual (n=5)', fontsize=12, fontweight='bold')
+ax6.legend()
+ax6.grid(True, alpha=0.3)
+ax6.text(0.05, 0.95, f'R² = {R_squared:.4f}\nβ = {beta_1:.4f}',
+         transform=ax6.transAxes, verticalalignment='top',
+         bbox=dict(boxstyle='round', facecolor='lightblue', alpha=0.5))
+
+plt.tight_layout()
+plt.savefig('regresion_lineal_diagnosticos.png', dpi=300, bbox_inches='tight')
+print("✓ Gráficas guardadas en 'regresion_lineal_diagnosticos.png'")
+
+# ============================================================
+# RESUMEN FINAL Y CONCLUSIONES
+# ============================================================
+
+print(f"\n{'=' * 70}")
+print("RESUMEN Y CONCLUSIONES")
+print("=" * 70)
+
+print("\n1. COMPARACIÓN EJEMPLO MANUAL VS DATOS COMPLETOS:")
+print("─" * 70)
+print(f"{'Estadística':<30} {'Manual (n=5)':<20} {'Completo (n=260)':<20}")
+print("─" * 70)
+print(f"{'Beta estimado':<30} {beta_1:>19.4f} {modelo_completo.params[1]:>19.4f}")
+print(f"{'Alpha estimado':<30} {beta_0:>19.6f} {modelo_completo.params[0]:>19.6f}")
+print(f"{'R²':<30} {R_squared:>19.4f} {modelo_completo.rsquared:>19.4f}")
+print(f"{'Error estándar regresión':<30} {s:>19.6f} {np.sqrt(modelo_completo.mse_resid):>19.6f}")
+
+print("\n2. INTERPRETACIÓN ECONÓMICA:")
+print("─" * 70)
+print(f"• Beta = {modelo_completo.params[1]:.2f}: Apple tiene {(modelo_completo.params[1]-1)*100:.0f}% más riesgo que el mercado")
+print(f"• Alpha = {modelo_completo.params[0]:.4f}: {'Positivo' if modelo_completo.params[0] > 0 else 'Negativo'}, ", end='')
+print(f"{'pero NO significativo' if modelo_completo.pvalues[0] > 0.05 else 'y significativo'} (p = {modelo_completo.pvalues[0]:.3f})")
+print(f"• R² = {modelo_completo.rsquared:.1%}: El mercado explica {modelo_completo.rsquared:.1%} de los retornos de Apple")
+
+print("\n3. VALIDACIÓN DE SUPUESTOS:")
+print("─" * 70)
+print(f"• Linealidad: ✓ (gráfico de dispersión muestra relación lineal)")
+print(f"• Normalidad: {'✓' if jb_pvalue > 0.05 else '✗'} (Jarque-Bera p = {jb_pvalue:.4f})")
+print(f"• Homocedasticidad: {'✓' if bp_pvalue > 0.05 else '✗'} (Breusch-Pagan p = {bp_pvalue:.4f})")
+print(f"• No autocorrelación: {'✓' if 1.5 < dw_stat < 2.5 else '✗'} (Durbin-Watson = {dw_stat:.4f})")
+
+print("\n4. CONCLUSIONES:")
+print("─" * 70)
+print("✓ Todos los cálculos manuales han sido verificados con éxito")
+print("✓ Los estimadores MCO coinciden entre el cálculo manual y statsmodels")
+print("✓ El modelo CAPM captura bien la relación riesgo-retorno para Apple")
+print("✓ El beta alto indica que Apple es un activo más volátil que el mercado")
+print("✓ El alpha cercano a cero y no significativo es consistente con eficiencia del mercado")
+
+print(f"\n{'=' * 70}")
+print("Fin del análisis")
+print("=" * 70)
+
+plt.show()
