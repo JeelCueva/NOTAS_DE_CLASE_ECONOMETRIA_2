@@ -17,7 +17,7 @@ import seaborn as sns
 from scipy import stats
 import statsmodels.api as sm
 from statsmodels.stats.diagnostic import het_breuschpagan
-from statsmodels.stats.stattools import durbin_watson
+from statsmodels.stats.stattools import durbin_watson, jarque_bera  # AÑADIR jarque_bera
 
 # Configuración de gráficas
 plt.style.use('seaborn-v0_8-darkgrid')
@@ -262,8 +262,8 @@ modelo_completo = sm.OLS(df_completo['Apple'], X_completo).fit()
 print(f"\n{'─' * 70}")
 print("RESULTADOS DE LA REGRESIÓN (n = 260)")
 print("─" * 70)
-print("\nEcuación estimada:")
-print(f"ŷ = {modelo_completo.params[0]:.6f} + {modelo_completo.params[1]:.6f}·x")
+print(f"\nEcuación estimada:")
+print(f"ŷ = {modelo_completo.params.iloc[0]:.6f} + {modelo_completo.params.iloc[1]:.6f}·x")
 
 print("\nResumen estadístico:")
 print(modelo_completo.summary())
@@ -281,7 +281,7 @@ resultados = pd.DataFrame({
 })
 print(resultados.to_string(index=False))
 
-print(f"\nR² = {modelo_completo.rsquared:.6f} ({modelo_completo.rsquared*100:.2f}%)")
+print(f"\nR² = {modelo_completo.rsquared:.6f} ({modelo_completo.rsquared*100:.2f}%")
 print(f"R² ajustado = {modelo_completo.rsquared_adj:.6f}")
 print(f"F-statistic = {modelo_completo.fvalue:.4f} (p-valor = {modelo_completo.f_pvalue:.10f})")
 
@@ -293,13 +293,14 @@ print(f"\n{'=' * 70}")
 print("PARTE 3: DIAGNÓSTICOS DEL MODELO")
 print("=" * 70)
 
-# Test de normalidad (Jarque-Bera)
-jb_stat = modelo_completo.diagn['jb'][0]
-jb_pvalue = modelo_completo.diagn['jb'][1]
+# Test de normalidad (Jarque-Bera) - CORREGIDO
+jb_stat, jb_pvalue, skew, kurtosis = jarque_bera(modelo_completo.resid)  # Usar la función jarque_bera
 
 print(f"\nTest de Jarque-Bera (Normalidad de residuos):")
 print(f"Estadístico JB = {jb_stat:.4f}")
 print(f"p-valor = {jb_pvalue:.4f}")
+print(f"Asimetría (skewness) = {skew:.4f}")
+print(f"Curtosis = {kurtosis:.4f}")
 if jb_pvalue > 0.05:
     print("✓ No se rechaza normalidad (p-valor > 0.05)")
 else:
@@ -342,14 +343,14 @@ fig = plt.figure(figsize=(16, 12))
 ax1 = plt.subplot(2, 3, 1)
 ax1.scatter(df_completo['Mercado'], df_completo['Apple'], alpha=0.5, s=20)
 x_line = np.linspace(df_completo['Mercado'].min(), df_completo['Mercado'].max(), 100)
-y_line = modelo_completo.params[0] + modelo_completo.params[1] * x_line
-ax1.plot(x_line, y_line, 'r-', linewidth=2, label=f'ŷ = {modelo_completo.params[0]:.4f} + {modelo_completo.params[1]:.2f}x')
+y_line = modelo_completo.params.iloc[0] + modelo_completo.params.iloc[1] * x_line
+ax1.plot(x_line, y_line, 'r-', linewidth=2, label=f'ŷ = {modelo_completo.params.iloc[0]:.4f} + {modelo_completo.params.iloc[1]:.2f}x')
 ax1.set_xlabel('Retorno Mercado (S&P 500)', fontsize=11)
 ax1.set_ylabel('Retorno Apple', fontsize=11)
 ax1.set_title('Modelo CAPM: Apple vs Mercado (n=260)', fontsize=12, fontweight='bold')
 ax1.legend()
 ax1.grid(True, alpha=0.3)
-ax1.text(0.05, 0.95, f'R² = {modelo_completo.rsquared:.4f}\nβ = {modelo_completo.params[1]:.4f}',
+ax1.text(0.05, 0.95, f'R² = {modelo_completo.rsquared:.4f}\nβ = {modelo_completo.params.iloc[1]:.4f}',
          transform=ax1.transAxes, verticalalignment='top',
          bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
 
@@ -398,7 +399,7 @@ y_line_manual = beta_0 + beta_1 * x_line_manual
 ax6.plot(x_line_manual, y_line_manual, 'r-', linewidth=2, label=f'ŷ = {beta_0:.4f} + {beta_1:.2f}x')
 # Etiquetar puntos
 for i in range(len(x_manual)):
-    ax6.annotate(f'{i+1}', (x_manual[i], y_manual[i]), 
+    ax6.annotate(f'{i+1}', (x_manual[i], y_manual[i]),
                 textcoords="offset points", xytext=(0,10), ha='center')
 ax6.set_xlabel('Retorno Mercado', fontsize=11)
 ax6.set_ylabel('Retorno Apple', fontsize=11)
