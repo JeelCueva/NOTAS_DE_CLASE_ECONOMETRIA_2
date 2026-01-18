@@ -7,7 +7,7 @@ Ejemplo 01: Estimación de Modelos Probit y Logit
 Este script implementa la estimación por máxima verosimilitud de modelos
 de elección binaria (Probit y Logit) usando datos reales de retornos de acciones.
 
-Author: [Tu nombre]
+Author: Jeel Cueva
 Date: 2024
 """
 
